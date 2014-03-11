@@ -1,0 +1,4 @@
+SimpleSubtitleEditor
+====================
+
+SimpleSubtitleEditor for Blender
