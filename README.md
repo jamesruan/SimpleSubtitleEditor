@@ -7,7 +7,7 @@ An Blender Addon for editing subtitles.
 - Adjusting each lines with markers in the time line.
 - Importing/exporting: SRT(SubRip) SUB(SubViewer).
 
-##Usage
+## Usage
 
 When activated, your should find an UI in Video Sequencer Editor > Properties > SimpleSubtitleEditor.
 
