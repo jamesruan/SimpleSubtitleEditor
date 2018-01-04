@@ -21,14 +21,14 @@
 bl_info = {
     "name": "Simple Subtitle Editor",
     "author": "James Ruan",
-    "version": (0, 2, 1),
-    "blender": (2, 72, 0),
+    "version": (0, 2, 2),
+    "blender": (2, 79, 0),
     "api": 40779,
     "location": "VSE > Properties > Simple Subtitle Editor",
     "description": "Simple subtitle editor",
     "warning": "Format guess is based on filename extension.",
     "wiki_url": "http://wiki.blender.org/index.php/Extensions:2.6/Py/Scripts/Sequencer/SimpleSubtitleEditor",
-    "tracker_url": "https://developer.blender.org/T28810",
+    "tracker_url": "https://github.com/jamesruan/SimpleSubtitleEditor/issues",
     "category": "Sequencer"}
 
 import bpy
@@ -68,16 +68,15 @@ def frameno2timecode(frameno, fps, format="srt"):
 
 
 class MarkerExportOperator(bpy.types.Operator):
+    """Export markers to file"""
     bl_idname = "marker.sse_export"
     bl_label = "Export markers to file"
 
     def execute(self, context):
         scene = context.scene
         m = []
-        scene.sse_msg = ""
         if not scene.sse_outfile:
-            scene.sse_msg = "You must select or name a file to write to."
-            return
+            raise Exception("You must select or name a file to write to.")
         ext = scene.sse_outfile.rsplit('.')[-1]
         if ext == "srt" or ext == "SRT":
             format = "srt"
@@ -86,35 +85,29 @@ class MarkerExportOperator(bpy.types.Operator):
         else:
             scene.sse_outfile += ".srt"
             format = "srt"
-            scene.sse_msg = "Output to file with format: %s"%(format)
 
         if format == "srt":
-            try:
-                f = open(scene.sse_outfile, mode='wt')
-                fps = scene.render.fps
-                for n in scene.sse_sublist:
-                    s = scene.timeline_markers["S%03d"%(n.index)].frame
-                    e = scene.timeline_markers["E%03d"%(n.index)].frame
-                    s = frameno2timecode(s, fps, "srt")
-                    e = frameno2timecode(e, fps, "srt")
-                    l = "%d\n%s --> %s\n%s\n"%(n.index, s, e, n.text.replace('\\n','\n'))
-                    m.append(l)
-                f.writelines("\n".join(m))
-            except IOError:
-                return {'FINISHED'}
-
+            f = open(scene.sse_outfile, mode='wt')
+            fps = scene.render.fps
+            for n in scene.sse_sublist:
+                s = scene.timeline_markers["S%03d"%(n.index)].frame
+                e = scene.timeline_markers["E%03d"%(n.index)].frame
+                s = frameno2timecode(s, fps, "srt")
+                e = frameno2timecode(e, fps, "srt")
+                l = "%d\n%s --> %s\n%s\n"%(n.index, s, e, n.text.replace('\\n','\n'))
+                m.append(l)
+            f.writelines("\n".join(m))
         elif format == "sub":
-            try:
-                f = open(scene.sse_outfile, mode='wt')
-                fps = scene.render.fps
-                for n in scene.sse_sublist:
-                    s = scene.timeline_markers["S%03d"%(n.index)].frame
-                    e = scene.timeline_markers["E%03d"%(n.index)].frame
-                    s = frameno2timecode(s, fps, "sub")
-                    e = frameno2timecode(e, fps, "sub")
-                    l = "%s,%s\n%s\n"%(s, e, n.text.replace('\\n','[br]'))
-                    m.append(l)
-                header="""[INFORMATION]
+            f = open(scene.sse_outfile, mode='wt')
+            fps = scene.render.fps
+            for n in scene.sse_sublist:
+                s = scene.timeline_markers["S%03d"%(n.index)].frame
+                e = scene.timeline_markers["E%03d"%(n.index)].frame
+                s = frameno2timecode(s, fps, "sub")
+                e = frameno2timecode(e, fps, "sub")
+                l = "%s,%s\n%s\n"%(s, e, n.text.replace('\\n','[br]'))
+                m.append(l)
+            header="""[INFORMATION]
 [TITLE]
 [AUTHOR]
 [SOURCE]
@@ -124,10 +117,8 @@ class MarkerExportOperator(bpy.types.Operator):
 [END INFORMATION]
 [SUBTITLE]
 """
-                f.write(header)
-                f.writelines("\n".join(m))
-            except IOError:
-                return {'FINISHED'}
+            f.write(header)
+            f.writelines("\n".join(m))
 #        print(m)
         return {'FINISHED'}
 
@@ -137,7 +128,6 @@ class MarkerImportOperator(bpy.types.Operator):
 
     def execute(self,context):
         scene = context.scene
-        scene.sse_msg = ""
         for i in range(0, len(scene.sse_sublist)):
             scene.sse_sublist.remove(0)
 
@@ -146,7 +136,7 @@ class MarkerImportOperator(bpy.types.Operator):
         m = []
 
         if not scene.sse_infile:
-            scene.sse_msg = "You must select a file to open."
+            raise Exception("You must select a file to open.")
             return
         ext = scene.sse_infile.rsplit('.')[-1]
         if ext == "srt" or ext == "SRT":
@@ -154,47 +144,39 @@ class MarkerImportOperator(bpy.types.Operator):
         elif ext == "sub" or ext =="SUB":
             format = "sub"
         else:
-            scene.sse_msg = "Can not open file of format: %s"%(ext)
+            raise Exception("Can not open file of format: %s"%(ext))
             return
 
         if format == "srt":
-            try:
-                f = open(scene.sse_infile)
-                all = "".join(f.readlines()).replace('\n\n',"\n#SEP#").split('#SEP#')
-                all = [x.strip('\n').splitlines() for x in all]
-                all = [x for x in all if x != []]
-                for i in all:
-                    n = {}
-                    n['i'] = int(i[0])
-                    t = i[1].split('-->')
-                    n['s'] = t[0].strip()
-                    n['e'] = t[1].strip()
-                    n['t'] = '\\n'.join(i[2:])
-                    m.append(n)
-                f.close()
-            except IOError:
-                print('IOError')
-                return {'FINISHED'}
+            f = open(scene.sse_infile)
+            all = "".join(f.readlines()).replace('\n\n',"\n#SEP#").split('#SEP#')
+            all = [x.strip('\n').splitlines() for x in all]
+            all = [x for x in all if x != []]
+            for i in all:
+                n = {}
+                n['i'] = int(i[0])
+                t = i[1].split('-->')
+                n['s'] = t[0].strip()
+                n['e'] = t[1].strip()
+                n['t'] = '\\n'.join(i[2:])
+                m.append(n)
+            f.close()
         elif format == "sub":
-            try:
-                f = open(scene.sse_infile)
-                #skip all INFORMATION
-                all = "".join(f.readlines()).rsplit('[SUBTITLE]\n')[-1].replace('\n\n',"\n#SEP#").split('#SEP#')
-                all = [x.strip('\n').splitlines() for x in all]
-                all = [x for x in all if x != []]
-                print(all)
-                for k in range(1, len(all)+1):
-                    n = {}
-                    n['i'] = k
-                    t = all[k-1][0].split(',')
-                    n['s'] = t[0].strip()
-                    n['e'] = t[1].strip()
-                    n['t'] = '[br]'.join(all[k-1][1:])
-                    m.append(n)
-                f.close()
-            except IOError:
-                print('IOError')
-                return {'FINISHED'}
+            f = open(scene.sse_infile)
+            #skip all INFORMATION
+            all = "".join(f.readlines()).rsplit('[SUBTITLE]\n')[-1].replace('\n\n',"\n#SEP#").split('#SEP#')
+            all = [x.strip('\n').splitlines() for x in all]
+            all = [x for x in all if x != []]
+            print(all)
+            for k in range(1, len(all)+1):
+                n = {}
+                n['i'] = k
+                t = all[k-1][0].split(',')
+                n['s'] = t[0].strip()
+                n['e'] = t[1].strip()
+                n['t'] = '[br]'.join(all[k-1][1:])
+                m.append(n)
+            f.close()
         #print(m)
         fps = scene.render.fps
 
@@ -304,13 +286,9 @@ class SSEPanel(bpy.types.Panel):
         a = col.operator("marker.sse_add",text="new", icon='ZOOMIN')
         a.name = "%03d"%(len(context.scene.sse_sublist)+1)
         row = col.row()
-        row.prop(scene, "sse_msg", text="")
-        row = col.row()
         row.label("Output:")
         row.prop(scene, "sse_outfile", text="")
         row.operator("marker.sse_export",text="", icon='FILE_TICK')
-
-
 
 def register():
     bpy.utils.register_class(MarkerImportOperator)
@@ -322,7 +300,6 @@ def register():
     bpy.utils.register_class(SSEPanel)
     setattr(bpy.types.Scene, "sse_infile", bpy.props.StringProperty(name="sse_infile", subtype='FILE_PATH', description="filename to import from"))
     setattr(bpy.types.Scene, "sse_outfile", bpy.props.StringProperty(name="sse_outfile", subtype='FILE_PATH', description="filename to export into"))
-    setattr(bpy.types.Scene, "sse_msg", bpy.props.StringProperty(name="sse_msg", subtype='NONE', description="Messages"))
     setattr(bpy.types.Scene, "sse_sublist", bpy.props.CollectionProperty(type=SSE_Sublist))
 
 def unregister():
@@ -335,7 +312,6 @@ def unregister():
     bpy.utils.unregister_class(SSEPanel)
     delattr(bpy.types.Scene, "sse_infile")
     delattr(bpy.types.Scene, "sse_outfile")
-    delattr(bpy.types.Scene, "sse_msg")
     delattr(bpy.types.Scene, "sse_sublist")
 
 if __name__ == '__main__':
